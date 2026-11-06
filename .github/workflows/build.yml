@@ -1,0 +1,74 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x64
+            binary: build/vexdir
+            filename: vexdir
+          - os: windows-2022
+            platform: windows-x64
+            binary: build/Release/vexdir.exe
+            filename: vexdir.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Compile
+        run: cmake --build build --config Release --parallel 2
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p package
+          cp "${{ matrix.binary }}" "package/${{ matrix.filename }}"
+          cd package
+          cmake -E tar cf "vexdir-${{ matrix.platform }}.zip" --format=zip -- "${{ matrix.filename }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vexdir-${{ matrix.platform }}
+          path: package/*.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vexdir-*
+          path: dist
+          merge-multiple: true
+      - name: Publish v0.1.0 if not yet released
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            echo "Release v0.1.0 already exists; not overwriting it."
+            exit 0
+          fi
+          mapfile -d '' archives < <(find dist -maxdepth 1 -name '*.zip' -print0 | sort -z)
+          if [ "${#archives[@]}" -ne 2 ]; then
+            echo "Expected exactly two platform archives." >&2
+            exit 1
+          fi
+          gh release create v0.1.0 "${archives[@]}" \
+            --title "Vexdir 0.1.0" \
+            --notes "First release: minimal read-only single-pane C++17 terminal navigator. Linux x64 and Windows x64 binaries." \
+            --target "${GITHUB_SHA}"

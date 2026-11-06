@@ -2,10 +2,12 @@
 
 A minimal single-pane, **read-only** terminal directory navigator inspired by classic FAR-style interfaces.
 
-**Version:** 0.1.1 | **Language:** C++17 | **Dependencies:** none (standard C++ and operating-system console APIs only).
+**Version:** 0.1.2 | **Language:** C++17 | **Dependencies:** none (standard C++ and operating-system console APIs only).
 
 ## Features
 
+- Far-style cyan/blue terminal colors and selected-row highlighting
+- Incremental redraw of changed rows to avoid full-screen flicker
 - Read-only directory navigation and file listing
 - Directory-first name sorting, file size display, current path, error reporting
 - Windows x64 and Linux x86-64 terminal support
@@ -35,7 +37,7 @@ cmake --build build --config Release --parallel
 
 Linux binary: `build/vexdir`. Windows Visual Studio binary: `build/Release/vexdir.exe`.
 
-The GitHub Actions workflow compiles both versions and publishes uncompressed executable files (`vexdir` and `vexdir.exe`) in release `v0.1.1`. It additionally checks the Windows PE dependency list for dynamically loaded Microsoft C/C++ runtimes.
+The GitHub Actions workflow compiles both versions and publishes uncompressed executable files (`vexdir` and `vexdir.exe`) in release `v0.1.2`. It additionally checks the Windows PE dependency list for dynamically loaded Microsoft C/C++ runtimes.
 
 ## Terminal requirements
 

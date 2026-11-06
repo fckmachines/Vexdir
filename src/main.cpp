@@ -1,4 +1,4 @@
-// Vexdir 0.1.1 — C++17; no third-party libraries.
+// Vexdir 0.1.2 — C++17; no third-party libraries.
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -100,12 +100,12 @@ class Terminal {
     if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) return;
 #endif
     ready_ = true;
-    std::cout << "\x1b[?1049h\x1b[?25l" << std::flush;
+    std::cout << "\x1b[?1049h\x1b[?25l\x1b[?7l" << std::flush;
   }
 
   ~Terminal() {
     if (!ready_) return;
-    std::cout << "\x1b[0m\x1b[?25h\x1b[?1049l" << std::flush;
+    std::cout << "\x1b[0m\x1b[?7h\x1b[?25h\x1b[?1049l" << std::flush;
 #ifdef _WIN32
     SetConsoleMode(input_, old_in_);
     SetConsoleMode(output_, old_out_);
@@ -279,42 +279,52 @@ class Navigator {
     return true;
   }
 
-  void render(int width, int height) {
-    width = std::max(width, 20);
-    height = std::max(height, 8);
-    const int visible = height - 7;
+  std::vector<std::string> frame(int width, int height) {
+    width = std::max(1, width);
+    height = std::max(1, height);
+    const int visible = std::max(0, height - 6);
     if (selected_ < offset_) offset_ = selected_;
-    if (selected_ >= offset_ + visible) offset_ = selected_ - visible + 1;
-    if (offset_ > std::max(0, static_cast<int>(entries_.size()) - visible))
-      offset_ = std::max(0, static_cast<int>(entries_.size()) - visible);
-    const int name_width = std::max(4, width - 19);
-    std::cout << "\x1b[H\x1b[2J";
-    line("\x1b[1;36m VEXDIR 0.1.1\x1b[0m  [READ ONLY]", width);
-    line(std::string(width, '-'), width);
-    line("\x1b[33m" + truncate_utf8(utf8(current_), width - 1) + "\x1b[0m", width);
-    line(std::string(width, '-'), width);
+    if (visible > 0 && selected_ >= offset_ + visible)
+      offset_ = selected_ - visible + 1;
+    offset_ = std::max(0, std::min(offset_,
+       std::max(0, static_cast<int>(entries_.size()) - visible)));
+    std::vector<std::string> rows;
+    rows.reserve(static_cast<std::size_t>(height));
+    auto add = [&](const std::string& color, const std::string& content) {
+      auto line = truncate_utf8(content, width);
+      int padding = std::max(0, width - static_cast<int>(utf8_columns(line)));
+      rows.push_back(color + line + std::string(static_cast<std::size_t>(padding), ' ') +
+                     "\x1b[0m");
+    };
+    add("\x1b[1;97;44m", " VEXDIR 0.1.2  |  FILE NAVIGATOR  |  READ ONLY");
+    add("\x1b[1;93;44m", " " + utf8(current_));
+    add("\x1b[1;96;44m", " NAME" +
+        std::string(static_cast<std::size_t>(std::max(1, width - 13)), ' ') +
+        "SIZE");
     for (int row = 0; row < visible; ++row) {
       const int index = offset_ + row;
       if (index >= static_cast<int>(entries_.size())) {
-        std::cout << "\x1b[K\n";
+        add("\x1b[37;44m", "");
         continue;
       }
       const auto& e = entries_[index];
-      std::string label = std::string(e.directory ? "[DIR] " : "      ") + e.name;
-      label = truncate_utf8(label, name_width);
-      const std::string size = e.directory ? "<DIR>" : e.known ? size_label(e.bytes) : "?";
-      if (index == selected_) std::cout << "\x1b[7m";
-      else if (e.directory) std::cout << "\x1b[36m";
-      std::cout << " " << label;
-      const int pad = std::max(1, name_width - static_cast<int>(utf8_columns(label)) + 1);
-      std::cout << std::string(static_cast<std::size_t>(pad), ' ') << size
-                << "\x1b[0m\x1b[K\n";
+      const int name_width = std::max(1, width - 17);
+      auto label = truncate_utf8(
+          std::string(e.directory ? " [DIR] " : "       ") + e.name, name_width);
+      label += std::string(static_cast<std::size_t>(std::max(0,
+          name_width - static_cast<int>(utf8_columns(label)))), ' ');
+      auto size = e.directory ? "<DIR>" : e.known ? size_label(e.bytes) : "?";
+      const auto content = label + " " + size;
+      add(index == selected_ ? "\x1b[1;30;106m" :
+          e.directory ? "\x1b[1;96;44m" : "\x1b[97;44m", content);
     }
-    line(std::string(width, '-'), width);
-    line(error_.empty() ? std::to_string(entries_.size()) + " items" :
-                         "Error: " + error_, width);
-    line("Arrows Move  Enter Open  Backspace Up  F5 Refresh  Esc Exit", width);
-    std::cout << std::flush;
+    add(error_.empty() ? "\x1b[1;92;44m" : "\x1b[1;91;44m",
+        error_.empty() ? " " + std::to_string(entries_.size()) + " items" :
+                         " Error: " + error_);
+    add("\x1b[1;30;46m",
+        " Arrows: Move  Enter: Open  Backspace: Up  F5: Refresh  Esc: Exit");
+    add("\x1b[37;44m", "");
+    return rows;
   }
 
  private:
@@ -359,6 +369,28 @@ class Navigator {
   std::string error_;
 };
 
+// Per-row VT updates avoid clearing the entire console on every key press.
+class Painter {
+ public:
+  explicit Painter(Terminal& terminal) : terminal_(terminal) {}
+  void paint(const std::vector<std::string>& rows, int width) {
+    if (width != previous_width_ || previous_.size() != rows.size())
+      previous_.clear();
+    std::string output;
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+      if (i < previous_.size() && rows[i] == previous_[i]) continue;
+      output += "\x1b[" + std::to_string(i + 1) + ";1H" + rows[i];
+    }
+    if (!output.empty()) std::cout << output << std::flush;
+    previous_ = rows;
+    previous_width_ = width;
+  }
+ private:
+  Terminal& terminal_;
+  std::vector<std::string> previous_;
+  int previous_width_ = 0;
+};
+
 int main() {
   Terminal terminal;
   if (!terminal.ready()) {
@@ -366,10 +398,11 @@ int main() {
     return 1;
   }
   Navigator navigator;
+  Painter painter(terminal);
   while (true) {
     auto [width, height] = terminal.dimensions();
-    navigator.render(width, height);
-    if (!navigator.handle(terminal.read_key(), std::max(1, height - 7))) break;
+    painter.paint(navigator.frame(width, height), width);
+    if (!navigator.handle(terminal.read_key(), std::max(1, height - 6))) break;
   }
   return 0;
 }

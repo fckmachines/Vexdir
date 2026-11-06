@@ -38,7 +38,7 @@ cmake --build build --config Release --parallel
 
 Run `./build/vexdir` on Linux, or `build\\Release\\vexdir.exe` when using Visual Studio on Windows.
 
-GitHub Actions builds Linux x86-64 and Windows x64 on every push to `main`. On the initial successful build, it publishes release `v0.1.0` with platform ZIP files.
+GitHub Actions builds Linux x86-64 and Windows x64 on every push to `main`. On successful builds, it publishes standalone `vexdir` and `vexdir.exe` executables in release `v0.1.0`, replacing previous assets when applicable.
 
 ## Notes
 

@@ -72,11 +72,11 @@ jobs:
           set -euo pipefail
           test -s dist/vexdir
           test -s dist/vexdir.exe
-          if gh release view v0.1.1 >/dev/null 2>&1; then
-            gh release upload v0.1.1 dist/vexdir dist/vexdir.exe --clobber
+          if gh release view v0.1.2 >/dev/null 2>&1; then
+            gh release upload v0.1.2 dist/vexdir dist/vexdir.exe --clobber
           else
-            gh release create v0.1.1 dist/vexdir dist/vexdir.exe \
+            gh release create v0.1.2 dist/vexdir dist/vexdir.exe \
               --target "${GITHUB_SHA}" \
-              --title "Vexdir 0.1.1" \
-              --notes "Native C++17 read-only navigator. No third-party libraries. Static MSVC runtime (/MT)."
+              --title "Vexdir 0.1.2" \
+              --notes "Far-style colored interface, incremental row rendering to reduce Windows console flicker. Native C++17; static MSVC runtime (/MT)."
           fi

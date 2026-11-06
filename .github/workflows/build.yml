@@ -22,7 +22,6 @@ jobs:
             platform: windows-x64
             binary: build/Release/vexdir.exe
             filename: vexdir.exe
-
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +29,20 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Compile
         run: cmake --build build --config Release --parallel 2
+      - name: Verify Windows binary has no dynamic MSVC runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
+          if (-not $dumpbin) {
+            $dumpbin = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $dumpbin) { throw "dumpbin.exe not found" }
+          $imports = & $dumpbin /DEPENDENTS "${{ matrix.binary }}" | Out-String
+          Write-Host $imports
+          if ($imports -match '(?i)(MSVCP|VCRUNTIME|UCRTBASE|api-ms-win-crt)[\w.-]*\.dll') {
+            throw "Unexpected dynamic MSVC runtime dependency"
+          }
       - name: Stage executable
         shell: bash
         run: |
@@ -50,26 +63,20 @@ jobs:
           pattern: vexdir-*
           path: dist
           merge-multiple: true
-      - name: Publish standalone executables
+      - name: Publish standalone binaries
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        shell: bash
         run: |
           set -euo pipefail
           test -s dist/vexdir
           test -s dist/vexdir.exe
-          if gh release view v0.1.0 >/dev/null 2>&1; then
-            gh release upload v0.1.0 dist/vexdir dist/vexdir.exe --clobber
+          if gh release view v0.1.1 >/dev/null 2>&1; then
+            gh release upload v0.1.1 dist/vexdir dist/vexdir.exe --clobber
           else
-            gh release create v0.1.0 dist/vexdir dist/vexdir.exe \
-              --title "Vexdir 0.1.0" \
-              --notes "Read-only, single-pane C++17 terminal navigator. Standalone Linux x64 and Windows x64 binaries." \
-              --target "${GITHUB_SHA}"
+            gh release create v0.1.1 dist/vexdir dist/vexdir.exe \
+              --target "${GITHUB_SHA}" \
+              --title "Vexdir 0.1.1" \
+              --notes "Native C++17 read-only navigator. No third-party libraries. Static MSVC runtime (/MT)."
           fi
-          for name in vexdir-linux-x64.zip vexdir-windows-x64.zip; do
-            id=$(gh api "repos/${GH_REPO}/releases/tags/v0.1.0" --jq ".assets[] | select(.name == \"$name\") | .id")
-            if [[ -n "$id" ]]; then
-              gh api --method DELETE "repos/${GH_REPO}/releases/assets/$id"
-            fi
-          done

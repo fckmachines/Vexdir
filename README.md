@@ -1,50 +1,47 @@
 # Vexdir
 
-A minimal, single-pane, **read-only** terminal file navigator inspired by classic FAR-style interfaces.
+A minimal single-pane, **read-only** terminal directory navigator inspired by classic FAR-style interfaces.
 
-**Version:** 0.1.0 | **Language:** C++17 | **UI:** FTXUI 7.0.3
+**Version:** 0.1.1 | **Language:** C++17 | **Dependencies:** none (standard C++ and operating-system console APIs only).
 
 ## Features
 
-- Navigate directories using the keyboard
-- Directories first, then files (case-insensitive names)
-- Displays file sizes and the current path
-- Refresh the directory listing on demand
-- No copy, move, rename, delete, or edit commands
-- Linux and Windows terminal support
+- Read-only directory navigation and file listing
+- Directory-first name sorting, file size display, current path, error reporting
+- Windows x64 and Linux x86-64 terminal support
+- No copy, move, rename, delete, edit, or file opening operations
+- On Windows, MSVC CRT is linked statically using `/MT`; `msvcp140.dll` is not required
 
-## Controls
+## Keys
 
 | Key | Action |
 | --- | --- |
 | Up / Down | Move selection |
-| PageUp / PageDown | Move 10 items |
-| Home / End | First / last item |
-| Enter | Open selected directory |
+| PageUp / PageDown | Move a page |
+| Home / End | First / last entry |
+| Enter / Right | Enter directory |
 | Backspace / Left | Parent directory |
 | F5 / R | Refresh |
 | Esc / Q | Exit |
 
-Regular files are displayed but are not opened in v0.1.0.
-
 ## Build
 
-Requirements: CMake 3.20+, Git, C++17 compiler, internet access at configure time to fetch FTXUI.
+Requires CMake 3.20+ and a C++17 compiler; does not download dependencies.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 
-Run `./build/vexdir` on Linux, or `build\\Release\\vexdir.exe` when using Visual Studio on Windows.
+Linux binary: `build/vexdir`. Windows Visual Studio binary: `build/Release/vexdir.exe`.
 
-GitHub Actions builds Linux x86-64 and Windows x64 on every push to `main`. On successful builds, it publishes standalone `vexdir` and `vexdir.exe` executables in release `v0.1.0`, replacing previous assets when applicable.
+The GitHub Actions workflow compiles both versions and publishes uncompressed executable files (`vexdir` and `vexdir.exe`) in release `v0.1.1`. It additionally checks the Windows PE dependency list for dynamically loaded Microsoft C/C++ runtimes.
 
-## Notes
+## Terminal requirements
 
-"Read-only" refers to available Vexdir operations. The program uses filesystem metadata reads and directory enumeration only; it does not enforce OS-level permission restrictions.
+An interactive terminal with ANSI/VT sequences enabled is required. On Windows, use Windows Terminal, PowerShell, or a compatible modern console host.
 
-FTXUI is fetched at the pinned tag `v7.0.3`. Third-party dependency is not vendored.
+The read-only feature limits operations within Vexdir; OS permissions remain the ultimate security boundary.
 
 ## License
 
